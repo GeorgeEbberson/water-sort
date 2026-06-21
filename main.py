@@ -1,18 +1,18 @@
 """Simulate the water sort game"""
-from collections import namedtuple
+from collections import Counter, namedtuple
 from copy import deepcopy
+from functools import total_ordering
 from pprint import pprint
 
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 
-RED = "#ff0000"
-BLUE = "#0000ff"
-GREEN = "#00ff00"
+from puzzles import PUZZLE_TO_SOLVE
 
 Move = namedtuple("Move", ["source", "dest", "count"])
 
 
+@total_ordering
 class Tube:
 
     MAX_TUBE_CAPACITY = 4
@@ -20,7 +20,7 @@ class Tube:
     def __init__(self, idx, *colours):
         """Given a list of hex codes."""
         assert len(colours) <= self.MAX_TUBE_CAPACITY
-        self._colours = list(colours)
+        self._colours = list(colours) if colours else []
         self.idx = idx
 
     def draw(self, ax, left_x, bottom_y):
@@ -43,7 +43,7 @@ class Tube:
     @property
     def top_colour(self):
         return None if self.is_empty else self._colours[-1]
-    
+
     @property
     def top_colour_count(self):
         """Number of top colour on the top of the tube."""
@@ -56,7 +56,7 @@ class Tube:
                 count += 1
             else:
                 break
-        
+
         return count
 
     @property
@@ -70,9 +70,8 @@ class Tube:
 
         moves = []
         for tube in other_tubes:
-            if tube.is_empty or (tube.top_colour == self.top_colour and tube.free_spaces > 0):
-                move_count = min(tube.free_spaces, self.top_colour_count)
-                moves.append(Move(source=self.idx, dest=tube.idx, count=move_count))
+            if tube.is_empty or (tube.top_colour == self.top_colour and tube.free_spaces >= self.top_colour_count):
+                moves.append(Move(source=self.idx, dest=tube.idx, count=self.top_colour_count))
 
         return moves
 
@@ -94,45 +93,31 @@ class Tube:
     def __repr__(self):
         """Representation of this object for debugging."""
         return f"{self.__class__.__name__}(idx={self.idx}, colours={self._colours})"
-    
+
     @property
     def is_solved(self):
         return self.is_empty or (self.top_colour_count == 4)
 
+    @property
+    def string(self):
+        """Create a sortable string repr of this tube."""
+        if self.is_empty:
+            return ""
+        return "".join(self._colours)
+
     def __eq__(self, other):
-        """True if self equals other."""
+        """True if this tube is the same as other."""
         if not isinstance(other, Tube):
-            return False
-        
-        if self.is_empty and other.is_empty:
-            return True
-        
-        if self.is_empty != other.is_empty:
-            return False
-        
-        if len(self._colours) != len(other._colours):
-            return False
+            return NotImplemented
 
-        return all([x == y for (x, y) in zip(self._colours, other._colours)])
+        return self.string == other.string
 
+    def __lt__(self, other):
+        """True if self is less than other."""
+        if not isinstance(other, Tube):
+            return NotImplemented
 
-def setup_tubes() -> list[Tube]:
-    """Return a list of tube objects."""
-    return [
-        Tube(0, RED, BLUE, RED, BLUE),
-        Tube(1, BLUE, RED, BLUE, RED),
-        Tube(2),
-    ]
-
-
-def setup_tubes():
-    return [
-        Tube(0, GREEN, BLUE),
-        Tube(1, RED, RED, GREEN),
-        Tube(2, BLUE, RED, GREEN),
-        Tube(3, GREEN, RED),
-        Tube(4, BLUE, BLUE),
-    ]
+        return self.string < other.string
 
 
 def show_tubes(tubes: list[Tube]):
@@ -186,7 +171,7 @@ def is_in_sequence(sequence: list[list[Tube]], tubes: list[Tube]):
 
 def is_permutation(current_tubes: list[Tube], proposed_tubes: list[Tube]):
     """True if proposed_tubes is just a permutation of current_tubes."""
-    return 
+    return sorted(current_tubes) == sorted(proposed_tubes)
 
 
 def recursive_solve(sequence):
@@ -211,9 +196,10 @@ def recursive_solve(sequence):
         if is_in_sequence(sequence, option):
             # Avoid cycles
             continue
-        
+
         if is_permutation(current_tubes, option):
             # Avoid permutations of the current tubes which just move water
+            # TODO incorporate this into find_moves()
             continue
 
         result = recursive_solve(sequence + [option])
@@ -221,18 +207,31 @@ def recursive_solve(sequence):
             return result
 
 
-def main():
+def make_tubes(colour_lists):
+    """Turn iterables of colours into tubes, with indices."""
+
+    # Quick sanity check, every colour should have a count of 4 else we'll never reach the exit condition
+    count_dict = Counter([x for y in colour_lists for x in y])
+    for colour, count in count_dict.items():
+        if isinstance(colour, str):
+            assert count == 4, f"Colour '{colour}' should feature 4 times, actually features {count}"
+
+    return [Tube(idx, *cols) for (idx, cols) in enumerate(colour_lists)]
+
+
+def main(colour_lists):
     """Main"""
-    tubes = setup_tubes()
-    # show_tubes(tubes)
+    tubes = make_tubes(colour_lists)
 
     sequence = [tubes]
     solution = recursive_solve(sequence)
     pprint(solution)
+
+    print(f"\n    *** SOLVED in {len(solution)} steps ***\n")
 
     for x in solution:
         show_tubes(x)
 
 
 if __name__ == "__main__":
-    main()
+    main(PUZZLE_TO_SOLVE)
