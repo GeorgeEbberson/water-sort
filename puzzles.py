@@ -1,4 +1,10 @@
-"""Puzzles for water sorting."""
+"""Definition of puzzles for water sorting.
+
+This file just needs to export PUZZLE_TO_SOLVE which main.py expects to be an
+iterable of iterables with up to main.Tube.MAX_TUBE_CAPACITY elements. Each
+element should be a hex colour string, i.e. #000000 is black. The iterable can
+be empty for an empty tube (and the convenience EMPTY_TUBE exists for this).
+"""
 
 EMPTY_TUBE = ()
 
@@ -54,4 +60,4 @@ WATER_SORT_LVL114 = (
     EMPTY_TUBE,
 )
 
-PUZZLE_TO_SOLVE = WATER_SORT_LVL114
+PUZZLE_TO_SOLVE = POKI_LVL4

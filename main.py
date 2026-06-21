@@ -1,11 +1,14 @@
 """Simulate the water sort game"""
 from collections import Counter, namedtuple
 from copy import deepcopy
-from functools import total_ordering
+from functools import partial, total_ordering
 from pprint import pprint
+from time import sleep
 
+import matplotlib.animation as animation
 import matplotlib.pyplot as plt
-from matplotlib.patches import Rectangle
+from matplotlib.patches import Rectangle, Wedge
+import numpy as np
 
 from puzzles import PUZZLE_TO_SOLVE
 
@@ -26,15 +29,35 @@ class Tube:
     def draw(self, ax, left_x, bottom_y):
         """Given an axis and the coordinates of the bottom left corner, draw the tube."""
         for (pos, colour) in enumerate(self._colours):
-            ax.add_patch(Rectangle((left_x, bottom_y + pos), 1, 1, color=colour))
+            if pos == 0:
+                ax.add_patch(Rectangle((left_x, bottom_y + 0.5), 1, 0.5, color=colour))
+                ax.add_patch(Wedge((left_x + 0.5, bottom_y + 0.5), 0.5, 180, 360, color=colour))
+            else:
+                ax.add_patch(Rectangle((left_x, bottom_y + pos), 1, 1, color=colour))
+
+        theta = np.linspace(np.pi, np.pi * 2, 100)
+        semicircle_x = np.cos(theta) * 0.5
+        semicircle_y = np.sin(theta) * 0.5
+        semicircle_points = [(x + left_x + 0.5, y + bottom_y + 0.5) for (x, y) in zip(semicircle_x, semicircle_y)]
 
         tube_outline = (
+            # LHS
             (left_x, bottom_y + self.MAX_TUBE_CAPACITY),
-            (left_x, bottom_y),
-            (left_x + 1, bottom_y),
+            (left_x, bottom_y + 0.5),
+
+            # Points making a semicircle
+            *semicircle_points,
+
+            # RHS
+            (left_x + 1, bottom_y + 0.5),
             (left_x + 1, bottom_y + self.MAX_TUBE_CAPACITY),
         )
-        ax.plot([x for (x, _) in tube_outline], [y for (_, y) in tube_outline], color="k", linewidth=2)
+        ax.plot(
+            [x for (x, _) in tube_outline], [y for (_, y) in tube_outline],
+            color="k",
+            linewidth=2,
+            solid_capstyle="round",
+        )
 
     @property
     def is_empty(self):
@@ -120,18 +143,22 @@ class Tube:
         return self.string < other.string
 
 
-def show_tubes(tubes: list[Tube]):
+def show_tubes(ax, tubes: list[Tube]):
     """Given a list of tubes, draw them."""
 
-    fig, ax = plt.subplots(1, 1)
+    rows = 2 if len(tubes) >= 8 else 1
+    per_row = np.ceil(len(tubes) / rows)
+
+    ax.clear()
+    ax.set_axis_off()
 
     left_x = 0
     bottom_y = 0
     for tube in tubes:
-        left_x += 2
+        row_idx, col_idx = divmod(tube.idx, per_row)
+        left_x = col_idx * 2
+        bottom_y = -row_idx * 5
         tube.draw(ax, left_x, bottom_y)
-
-    plt.show()
 
 
 def calculate_moves(tubes: list[Tube]):
@@ -141,10 +168,6 @@ def calculate_moves(tubes: list[Tube]):
         other_tubes = [x for x in tubes if x.idx != tube.idx]
         moves.extend(tube.find_moves(other_tubes))
     return moves
-
-
-def show_moves(moves: list[Move]):
-    pprint(moves)
 
 
 def apply_one_move(tubes, move):
@@ -219,6 +242,38 @@ def make_tubes(colour_lists):
     return [Tube(idx, *cols) for (idx, cols) in enumerate(colour_lists)]
 
 
+def animate_fig(ax, solution, fig_idx):
+    """Update the figure to show tubes at index i."""
+    show_tubes(ax, solution[fig_idx])
+
+
+def plot_and_save_video(solution):
+    """Save a video of the solution then render it to the screen in a figure."""
+    plt.rcParams["toolbar"] = "None"
+    fig = plt.figure()
+    fig.canvas.manager.set_window_title("Water Sort Solver")
+    fig.set_facecolor("#efefef")
+    ax = fig.add_axes([0, 0, 1, 1])
+    ax.set_aspect("equal")
+
+    ani = animation.FuncAnimation(
+        fig,
+        partial(animate_fig, ax, solution),
+        frames=len(solution),
+        interval=800,
+        repeat_delay=2000,
+    )
+    writer = animation.FFMpegWriter(
+        fps=1.25,
+        codec="libx264",
+        bitrate=500,
+    )
+
+    ani.save("output.mp4", writer=writer)
+
+    plt.show()
+
+
 def main(colour_lists):
     """Main"""
     tubes = make_tubes(colour_lists)
@@ -226,11 +281,9 @@ def main(colour_lists):
     sequence = [tubes]
     solution = recursive_solve(sequence)
     pprint(solution)
-
     print(f"\n    *** SOLVED in {len(solution)} steps ***\n")
 
-    for x in solution:
-        show_tubes(x)
+    plot_and_save_video(solution)
 
 
 if __name__ == "__main__":
