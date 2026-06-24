@@ -256,21 +256,31 @@ def plot_and_save_video(solution):
     ax = fig.add_axes([0, 0, 1, 1])
     ax.set_aspect("equal")
 
+    video_frame_rate_fps = 30
+    each_frame_duration_s = 0.8
+    frames_per_solution = round(video_frame_rate_fps * each_frame_duration_s)
+
     ani = animation.FuncAnimation(
         fig,
         partial(animate_fig, ax, solution),
         frames=len(solution),
-        interval=800,
+        interval=each_frame_duration_s * 1000,  # In milliseconds
         repeat_delay=2000,
     )
     writer = animation.FFMpegWriter(
-        fps=1.25,
+        fps=video_frame_rate_fps,
         codec="libx264",
         bitrate=500,
     )
 
-    ani.save("output.mp4", writer=writer)
+    with writer.saving(fig, "output.mp4", dpi=100):
+        for state_idx in range(len(solution)):
+            animate_fig(ax, solution, state_idx)
 
+            for _ in range(frames_per_solution):
+                writer.grab_frame()
+
+    # print("Showing!")
     plt.show()
 
 
